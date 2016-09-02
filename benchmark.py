@@ -10,11 +10,12 @@ import threading
 import random
 import StringIO
 
-HOST = "127.0.0.1"
+LOCALIPS = "192.168.199.10,192.168.199.11,192.168.199.12,192.168.199.13,192.168.199.14"
+HOST = "192.168.199.197"
 PORT = 8081
 
 # 并发连接数
-CONNECTIONS  = 200
+CONNECTIONS  = 200000
 
 # 每个连接发送消息间隔时间，单位秒
 MSG_INTERVAL = 5
@@ -68,10 +69,11 @@ def decodeFrame(d):
 
 class PluginThread(threading.Thread):
 
-    def __init__(self):
+    def __init__(self, ip):
         threading.Thread.__init__(self, name="SocketTest")
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.bind(ip)
         except Exception as msg:
             self.sock = None
             log.error("Error create socket: %s", msg)
@@ -98,7 +100,7 @@ class PluginThread(threading.Thread):
         log.debug("SocketTest thread finished")
 
     def connect(self):
-        content = "GET /websocket/?request=eyJpZCI6MTg1NjYyMjQxMjA2MDMxOSwiYWRtaW4iOjEsIm5hbWUiOiJcdTRlNjBcdThmZDFcdTVlNzMiLCJ0b2tlbiI6ImFmMjFhZDhhZmIxMjhiNmU1ZjdkNDgxNzQ4NTJiYjg1MWZhMmJmOGMwNGZmY2FmMmExMzQ3MzZhZGQ2MTUwYzYxIn0= HTTP/1.1\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nHost: "+HOST+':'+str(PORT)+"\r\nOrigin: https://yq.aliyun.com\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: AQIDBAUGBwgJCgsMDQ4PEC==\r\n\r\n"
+        content = "GET /websocket/?request=eyJuYW1lIjoi5Lmg6L%2BR5bmzIiwiYWRtaW4iOjEsImlkIjoxODU2NjIyNDEyMDYwMzE5LCJyaWQiOjEwMDg2LCJ0b2tlbiI6ImFmMjFhZDhhZmIxMjhiNmU1ZjdkNDgxNzQ4NTJiYjg1MWZhMmJmOGMwNGZmY2FmMmExMzQ3MzZhZGQ2MTUwYzYxIn0%3D HTTP/1.1\r\nUpgrade: WebSocket\r\nConnection: Upgrade\r\nHost: "+HOST+':'+str(PORT)+"\r\nOrigin: https://yq.aliyun.com\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: AQIDBAUGBwgJCgsMDQ4PEC==\r\n\r\n"
         self.sock.sendall(content)
         log.debug("SocketTest send handshake msg")
         self.recvmsg()
@@ -106,16 +108,16 @@ class PluginThread(threading.Thread):
     def sendmsg(self, msg):
         log.debug("SocketTest send msg: %s", msg)
         log.debug('%r', encodeFrame({'length': len(msg),
-            'opCode': 1, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
+                                     'opCode': 1, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
         self.sock.sendall(encodeFrame({'length': len(msg),
-            'opCode': 1, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
+                                       'opCode': 1, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
 
     def sendclose(self):
         log.debug("SocketTest send close frame")
         code = 1000 # a normal closure
         msg  = struct.pack('>H', code) + '关闭连接'
         self.sock.sendall(encodeFrame({'length': len(msg),
-            'opCode': 8, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
+                                       'opCode': 8, 'FIN': 1, 'payloadData': msg, 'maskingKey': [0x25, 0x98, 0x67, 0x99]}))
 
     def recvmsg(self):
         buf = []
@@ -126,9 +128,11 @@ class PluginThread(threading.Thread):
 
 if __name__ == '__main__':
     tasks = []
-    for i in range(CONNECTIONS):
-        tasks.append(PluginThread())
-    for task in tasks:
-        task.start()
+    ips = LOCALIPS.split(',')
+    for ip in ips:
+        for i in range(CONNECTIONS):
+            tasks.append(PluginThread(ip))
+        for task in tasks:
+            task.start()
 
     sys.exit(0)
